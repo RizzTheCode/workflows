@@ -17,7 +17,7 @@ jobs:
           crate: apkeep
           git: https://github.com/EFForg/apkeep.git   
 
-      - name: Download
+      - name: Download APK
         id: artifact
         run: |
           apkeep -a com.mexcpro.client .
@@ -29,12 +29,13 @@ jobs:
           fi
           echo "file=$FILE" >> "$GITHUB_OUTPUT"
           echo "Found and verified asset: $FILE"
+
       - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.run_number }}
+          name: MEXC APK Release $(date +%Y%m%d)
+          body: ""
+          files: ${{ steps.artifact.outputs.file }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="mexc-apk-$(date +%Y%m%d)"
-          gh release create "$TAG" \
-            "${{ steps.artifact.outputs.file }}" \
-            --title "MEXC APK $TAG" \
-            --notes "Latest asset for com.mexcpro.client downloaded via apkeep."
