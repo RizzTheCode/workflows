@@ -21,15 +21,18 @@ jobs:
         run: |
           apkeep -a com.mexcpro.client .   
 
-      - name: List files for debugging
-        run: ls -la   
-
       - name: Locate downloaded file
         id: artifact
         run: |
-          FILE=$(find . -maxdepth 1 -type f ( -name '*.apk' -o -name '*.xapk' -o -name '*.apks' ) | head -n 1)
+          ls -la  
+          FILE="com.mexcpro.client.xapk"
+          if [ ! -f "$FILE" ]; then
+            echo "Hardcoded file not found; trying dynamic find"
+            FILE=$(find . -maxdepth 1 -type f ( -name '*.apk' -o -name '*.xapk' -o -name '*.apks' ) | head -n 1)
+          fi
+          
           if [ -z "$FILE" ]; then
-            echo "No APK/XAPK/APKS file found"
+            echo "No matching file found"
             exit 1
           fi
           echo "file=$FILE" >> "$GITHUB_OUTPUT"
