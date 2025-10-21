@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4   
 
       - name: Install apkeep via Cargo
         uses: baptiste0928/cargo-install@v3
@@ -19,14 +19,15 @@ jobs:
 
       - name: Download APK (or XAPK)
         run: |
-          apkeep -a com.mexcpro.client .
+          apkeep -a com.mexcpro.client .   
 
       - name: Locate downloaded file
         id: artifact
         run: |
           FILE=$(find . -maxdepth 1 -type f ( -name '*.apk' -o -name '*.xapk' -o -name '*.apks' ) | head -n 1)
           if [ -z "$FILE" ]; then
-            echo "No APK/XAPK/APKS file found"; exit 1;
+            echo "No APK/XAPK/APKS file found"
+            exit 1
           fi
           echo "file=$FILE" >> "$GITHUB_OUTPUT"
           echo "Found asset: $FILE"
