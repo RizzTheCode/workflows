@@ -1,30 +1,42 @@
-name: Download MEXC APK and Create Release
+name: Download MEXC APK and Release
 
 on:
-  workflow_dispatch:  # Allows manual triggering from the GitHub UI
+  workflow_dispatch:
 
 jobs:
   download-and-release:
     runs-on: ubuntu-latest
+
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Install apkeep via Cargo
         uses: baptiste0928/cargo-install@v3
         with:
           crate: apkeep
           git: https://github.com/EFForg/apkeep.git
 
-      - name: Download APK
-        run: apkeep -a com.mexcpro.client .
-
-      - name: Find downloaded APK file
-        id: find-apk
+      - name: Download APK (or XAPK)
         run: |
-          APK_FILE=$(ls -1 *.apk | head -1)
-          echo "file=$APK_FILE" >> $GITHUB_OUTPUT
+          apkeep -a com.mexcpro.client .
+
+      - name: Locate downloaded file
+        id: artifact
+        run: |
+          FILE=$(find . -maxdepth 1 -type f ( -name '*.apk' -o -name '*.xapk' -o -name '*.apks' ) | head -n 1)
+          if [ -z "$FILE" ]; then
+            echo "No APK/XAPK/APKS file found"; exit 1;
+          fi
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          echo "Found asset: $FILE"
 
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="mexc-apk-$(date +%Y%m%d)"
-          gh release create "$TAG" --title "MEXC APK Release $TAG" --notes "Latest APK for com.mexcpro.client downloaded via apkeep from APKPure." ./${{ steps.find-apk.outputs.file }}
+          gh release create "$TAG" \
+            "${{ steps.artifact.outputs.file }}" \
+            --title "MEXC APK $TAG" \
+            --notes "Latest asset for com.mexcpro.client downloaded via apkeep."
