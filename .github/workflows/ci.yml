@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  
+        uses: actions/checkout@v4   
 
       - name: Install apkeep via Cargo
         uses: baptiste0928/cargo-install@v3
@@ -19,10 +19,10 @@ jobs:
 
       - name: Download APK (or XAPK)
         run: |
-          apkeep -a com.mexcpro.client . 
+          apkeep -a com.mexcpro.client .   
 
       - name: List files for debugging
-        run: ls -la  
+        run: ls -la   
 
       - name: Locate downloaded file
         id: artifact
