@@ -17,54 +17,77 @@ jobs:
           crate: apkeep
           git: https://github.com/EFForg/apkeep.git   
 
-      - name: Download XAPK and Extract Version
+      - name: Get Latest Version and Download XAPK
         id: download
         run: |
-          # Download the latest MEXC XAPK
-          apkeep -a com.mexcpro.client --metadata-output metadata.json .
-          FILE="com.mexcpro.client.xapk"
+          # Step 1: Get latest version from APKPure
+          LATEST_VERSION=$(apkeep -l -a com.mexcpro.client | head -n 1 | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+          
+          if [ -z "$LATEST_VERSION" ]; then
+            echo "Failed to retrieve latest version"
+            exit 1
+          fi
 
-          if [ ! -f "$FILE" ]; then
-            echo "Download failed or file not found: $FILE"
+          echo "Latest version: $LATEST_VERSION"
+
+          # Step 2: Download specific version as XAPK
+          apkeep -a "com.mexcpro.client@$LATEST_VERSION" .
+
+          XAPK_FILE="com.mexcpro.client.xapk"
+
+          if [ ! -f "$XAPK_FILE" ]; then
+            echo "Download failed: $XAPK_FILE not found"
             ls -la
             exit 1
           fi
 
-          # Extract versionName from metadata.json
-          VERSION=$(jq -r '.versionName' metadata.json)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Downloaded version: $VERSION"
-          echo "xapk=$FILE" >> "$GITHUB_OUTPUT"
+          # Output values
+          echo "version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+          echo "xapk=$XAPK_FILE" >> "$GITHUB_OUTPUT"
+          echo "Downloaded: $XAPK_FILE (version $LATEST_VERSION)"
 
       - name: Repack Selected APKs into APKS
         id: repack
         run: |
+          XAPK="${{ steps.download.outputs.xapk }}"
+          VERSION="${{ steps.download.outputs.version }}"
+
           mkdir extracted
-          unzip -q "${{ steps.download.outputs.xapk }}" -d extracted
+          unzip -q "$XAPK" -d extracted
 
           cd extracted
           mkdir selected
 
-          # Copy and rename files
-          cp com.mexcpro.client.apk selected/base.apk || echo "base APK missing!"
-          cp config.arm64_v8a.apk selected/split_config.arm64_v8a.apk || echo "arm64 split missing!"
-          cp config.xxhdpi.apk selected/split_config.xxhdpi.apk || echo "xxhdpi split missing!"
+          # Copy required splits (fail gracefully if missing)
+          cp com.mexcpro.client.apk selected/base.apk || { echo "base.apk missing!"; exit 1; }
+          cp config.arm64_v8a.apk selected/split_config.arm64_v8a.apk || echo "arm64 split missing"
+          cp config.xxhdpi.apk selected/split_config.xxhdpi.apk || echo "xxhdpi split missing"
 
           cd selected
 
-          # Repack into .apks with max compression (-9)
-          zip -r9 ../../MEXC-Pro_${{ steps.download.outputs.version }}-arm64_v8a.apks ./*
-          cd ../..
+          # Create .apks file
+          APKS_FILE="../../MEXC-Pro_${VERSION}-arm64_v8a.apks"
+          zip -r9 "$APKS_FILE" ./*
 
-          echo "apks=MEXC-Pro_${{ steps.download.outputs.version }}-arm64_v8a.apks" >> "$GITHUB_OUTPUT"
-          echo "Created: MEXC-Pro_${{ steps.download.outputs.version }}-arm64_v8a.apks"
+          cd ../..
+          echo "apks=MEXC-Pro_${VERSION}-arm64_v8a.apks" >> "$GITHUB_OUTPUT"
+          echo "Created: MEXC-Pro_${VERSION}-arm64_v8a.apks"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.download.outputs.version }}
-          name: MEXC APK Release ${{ steps.download.outputs.version }}
-          body: "Repacked .xapk → .apks for Obtainium.\n\nIncludes: base.apk, split_config.arm64_v8a.apk, split_config.xxhdpi.apk"
+          name: MEXC Pro ${{ steps.download.outputs.version }}
+          body: |
+            Repacked `.xapk` → `.apks` for **Obtainium**.
+
+            Includes:
+            - `base.apk`
+            - `split_config.arm64_v8a.apk`
+            - `split_config.xxhdpi.apk`
+
+            **Source:** APKPure
           files: ${{ steps.repack.outputs.apks }}
+          fail_on_unmatched_files: true
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use built-in token or PAT
