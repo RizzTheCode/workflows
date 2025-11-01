@@ -9,16 +9,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4   
+        uses: actions/checkout@v4
 
       - name: Install apkeep via Cargo
         uses: baptiste0928/cargo-install@v3
         with:
           crate: apkeep
-          git: https://github.com/EFForg/apkeep.git   
+          git: https://github.com/EFForg/apkeep.git
 
-      - name: Download and Rename APK
-        id: artifact
+      - name: Download XAPK
+        id: download
         run: |
           apkeep -a com.mexcpro.client .
           FILE="com.mexcpro.client.xapk"
@@ -27,19 +27,35 @@ jobs:
             ls -la
             exit 1
           fi
-          
-          # Rename file for Obtainium
-          NEW_FILE="MEXC-latest.xapk"
-          mv "$FILE" "$NEW_FILE"
-          echo "file=$NEW_FILE" >> "$GITHUB_OUTPUT"
-          echo "Renamed file to: $NEW_FILE"
+          echo "xapk=$FILE" >> "$GITHUB_OUTPUT"
+          echo "Downloaded: $FILE"
+
+      - name: Repack XAPK into APKS
+        id: repack
+        run: |
+          mkdir extracted
+          unzip "${{ steps.download.outputs.xapk }}" -d extracted
+
+          cd extracted
+          ls
+          mkdir selected
+          cp base.apk selected/ || echo "base.apk not found"
+          cp split_config.arm64_v8a.apk selected/ || echo "arm64_v8a split not found"
+          cp split_config.xxhdpi.apk selected/ || echo "xxhdpi split not found"
+
+          cd selected
+          zip -r ../../MEXC-latest.apks ./*
+          cd ../..
+
+          echo "apks=MEXC-latest.apks" >> "$GITHUB_OUTPUT"
+          echo "Created: MEXC-latest.apks"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.run_number }}
           name: MEXC APK Release $(date +%Y%m%d)
-          body: "Automated release for Obtainium updates"
-          files: ${{ steps.artifact.outputs.file }}
+          body: "Repacked .xapk → .apks for Obtainium."
+          files: ${{ steps.repack.outputs.apks }}
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
