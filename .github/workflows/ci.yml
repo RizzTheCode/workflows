@@ -17,7 +17,7 @@ jobs:
           crate: apkeep
           git: https://github.com/EFForg/apkeep.git   
 
-      - name: Download APK
+      - name: Download and Rename APK
         id: artifact
         run: |
           apkeep -a com.mexcpro.client .
@@ -27,15 +27,19 @@ jobs:
             ls -la
             exit 1
           fi
-          echo "file=$FILE" >> "$GITHUB_OUTPUT"
-          echo "Found and verified asset: $FILE"
+          
+          # Rename file for Obtainium
+          NEW_FILE="MEXC-latest.xapk"
+          mv "$FILE" "$NEW_FILE"
+          echo "file=$NEW_FILE" >> "$GITHUB_OUTPUT"
+          echo "Renamed file to: $NEW_FILE"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.run_number }}
           name: MEXC APK Release $(date +%Y%m%d)
-          body: ""
+          body: "Automated release for Obtainium updates"
           files: ${{ steps.artifact.outputs.file }}
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
