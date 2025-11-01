@@ -9,53 +9,62 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4   
 
       - name: Install apkeep via Cargo
         uses: baptiste0928/cargo-install@v3
         with:
           crate: apkeep
-          git: https://github.com/EFForg/apkeep.git
+          git: https://github.com/EFForg/apkeep.git   
 
-      - name: Download XAPK
+      - name: Download XAPK and Extract Version
         id: download
         run: |
-          apkeep -a com.mexcpro.client .
+          # Download the latest MEXC XAPK
+          apkeep -a com.mexcpro.client --metadata-output metadata.json .
           FILE="com.mexcpro.client.xapk"
+
           if [ ! -f "$FILE" ]; then
             echo "Download failed or file not found: $FILE"
             ls -la
             exit 1
           fi
-          echo "xapk=$FILE" >> "$GITHUB_OUTPUT"
-          echo "Downloaded: $FILE"
 
-      - name: Repack XAPK into APKS
+          # Extract versionName from metadata.json
+          VERSION=$(jq -r '.versionName' metadata.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Downloaded version: $VERSION"
+          echo "xapk=$FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Repack Selected APKs into APKS
         id: repack
         run: |
           mkdir extracted
-          unzip "${{ steps.download.outputs.xapk }}" -d extracted
+          unzip -q "${{ steps.download.outputs.xapk }}" -d extracted
 
           cd extracted
-          ls
           mkdir selected
-          cp base.apk selected/ || echo "base.apk not found"
-          cp split_config.arm64_v8a.apk selected/ || echo "arm64_v8a split not found"
-          cp split_config.xxhdpi.apk selected/ || echo "xxhdpi split not found"
+
+          # Copy and rename files
+          cp com.mexcpro.client.apk selected/base.apk || echo "base APK missing!"
+          cp config.arm64_v8a.apk selected/split_config.arm64_v8a.apk || echo "arm64 split missing!"
+          cp config.xxhdpi.apk selected/split_config.xxhdpi.apk || echo "xxhdpi split missing!"
 
           cd selected
-          zip -r ../../MEXC-latest.apks ./*
+
+          # Repack into .apks with max compression (-9)
+          zip -r9 ../../MEXC-Pro_${{ steps.download.outputs.version }}-arm64_v8a.apks ./*
           cd ../..
 
-          echo "apks=MEXC-latest.apks" >> "$GITHUB_OUTPUT"
-          echo "Created: MEXC-latest.apks"
+          echo "apks=MEXC-Pro_${{ steps.download.outputs.version }}-arm64_v8a.apks" >> "$GITHUB_OUTPUT"
+          echo "Created: MEXC-Pro_${{ steps.download.outputs.version }}-arm64_v8a.apks"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.run_number }}
-          name: MEXC APK Release $(date +%Y%m%d)
-          body: "Repacked .xapk → .apks for Obtainium."
+          tag_name: ${{ steps.download.outputs.version }}
+          name: MEXC APK Release ${{ steps.download.outputs.version }}
+          body: "Repacked .xapk → .apks for Obtainium.\n\nIncludes: base.apk, split_config.arm64_v8a.apk, split_config.xxhdpi.apk"
           files: ${{ steps.repack.outputs.apks }}
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
